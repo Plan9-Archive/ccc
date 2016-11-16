@@ -155,6 +155,7 @@ void pushstream(int);
 Rune getr(void);
 int ungetr(void);
 void copyout(void);
+void nocopyout(void);
 void printchandecls(Symlist*);
 int isspacer(Rune);
 int isalphar(Rune);

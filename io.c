@@ -79,6 +79,12 @@ copyout(void)
 }
 
 void
+nocopyout(void)
+{
+	last = cur;
+}
+
+void
 printchandecls(Symlist *slist)
 {
 	Sym **si, *s;

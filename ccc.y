@@ -27,11 +27,12 @@
 
 %type	<decl>	xasdecl
 %type	<symlist>	declors
-%type	<typelist>	param-list
-%type	<sym>	declor declor2 name tycl sue
-%type	<type>	abdeclor abdeclor2
+%type	<typelist>	param-list param-list1
+%type	<sym>	declor declor1 name tycl sue
+%type	<type>	abdeclor abdeclor1 abdeclor2 abdeclor3 param
 %type	<btype>	tcqspec
 %type	<sumembs>	sdecls
+%type	<ival>	zival
 
 %token	<sym>	LNAME LVOID LCHAR LSHORT LINT LLONG LFLOAT
 %token	<sym>	LDOUBLE LSIGNED LUNSIGNED LCONST LVOLATILE
@@ -52,6 +53,7 @@ xadecl:
 		if($1.chantype != nil) {
 			setchantype($1.slist, $1.chantype);
 			printchandecls($1.slist);
+			nocopyout();
 		} else {
 			settype($1.slist, &$1.btype);
 			copyout();
@@ -68,7 +70,7 @@ xasdecl:
 	}
 |	tcqspec declors ';'
 	{
-		typeclean(&$1);
+		btypeclean(&$1);
 
 		$$.btype = $1;
 		$$.slist = $2;
@@ -76,7 +78,7 @@ xasdecl:
 	}
 |	LCHAN '(' tcqspec abdeclor ')' declors ';'
 	{
-		typeclean(&$3);
+		btypeclean(&$3);
 		*(Btype*)$4 = $3;
 
 		$$.btype = (struct Btype){nil, 0};
@@ -111,14 +113,14 @@ declors:
 	}
 
 declor:
-	declor2
+	declor1
 |	'*' declor
 	{
 		dtype($2->newtype, TPTR);
 		$$ = $2;
 	}
 
-declor2:
+declor1:
 	name
 	{
 		$1->newtype = type();
@@ -128,7 +130,7 @@ declor2:
 	{
 		$$ = $2;
 	}
-|	declor2 '[' LIVAL ']'
+|	declor1 '[' zival ']'
 	{
 		Dtype *d;
 
@@ -136,83 +138,103 @@ declor2:
 		d->alen = $3;
 		$$ = $1;
 	}
-|	declor2 '[' ']'
-	{
-		Dtype *d;
-
-		d = dtype($1->newtype, TARR);
-		d->alen = -1;
-		$$ = $1;
-	}
-|	declor2 '(' param-list ')'
+|	declor1 '(' param-list ')'
 	{
 		Dtype *d;
 
 		d = dtype($1->newtype, TFUNC);
 		d->param = $3;
-		$$ = $1;
-	}
-|	declor2 '(' param-list ',' '.' '.' '.' ')'
-	{
-		Dtype *d;
-		Type *t;
-
-		d = dtype($1->newtype, TFUNC);
-		d->param = $3;
-		t = type();
-		t->tycl = 1<<BDOTS;
-		addtype(d->param, t);
 		$$ = $1;
 	}
 
 param-list:
-	tcqspec declor
+	param-list1
+|	param-list1 ',' '.' '.' '.'
+	{
+		Type *t;
+
+		t = type();
+		t->tycl = 1<<BDOTS;
+		addtype($1, t);
+		$$ = $1;
+	}
+
+param-list1:
+	param
 	{
 		$$ = typelist();
-
-		typeclean(&$1);
-		*(Btype*)$2->newtype = $1;
-		addtype($$, $2->newtype);
-		$2->newtype = nil;
+		addtype($$, $1);
 	}
-|	param-list ',' tcqspec declor
+|	param-list1 ',' param
 	{
-		typeclean(&$3);
-		*(Btype*)$4->newtype = $3;
-		$$ = addtype($1, $4->newtype);
-		$4->newtype = nil;
-}
+		$$ = addtype($1, $3);
+	}
+
+param:
+	tcqspec declor
+	{
+		$$ = $2->newtype;
+		btypeclean(&$1);
+		*(Btype*)$$ = $1;
+	}
+|	tcqspec abdeclor
+	{
+		$$ = $2;
+		btypeclean(&$1);
+		*(Btype*)$$ = $1;
+	}	
 
 abdeclor:
+	{
+		$$ = type();
+	}
+|	abdeclor1
+
+abdeclor1:
 	abdeclor2
-|	'*' abdeclor2
+|	'*'
+	{
+		$$ = type();
+		dtype($$, TPTR);
+	}
+|	'*' abdeclor1
 	{
 		dtype($2, TPTR);
 		$$ = $2;
 	}
 
 abdeclor2:
+	abdeclor3
+|	abdeclor2 '(' param-list ')'
 	{
-		$$ = type();
+		Dtype *d;
+
+		d = dtype($1, TFUNC);
+		d->param = $3;
+		$$ = $1;
+	}
+|	abdeclor2 '[' zival ']'
+	{
+		Dtype *d;
+
+		d = dtype($1, TARR);
+		d->alen = $3;
+		$$ = $1;
 	}
 
-tycl:
-	LVOID
-|	LCHAR
-|	LSHORT
-|	LINT
-|	LLONG
-|	LFLOAT
-|	LDOUBLE
-|	LSIGNED
-|	LUNSIGNED
-|	LCONST
-|	LVOLATILE
-|	LAUTO
-|	LREGISTER
-|	LSTATIC
-|	LEXTERN
-|	LTYPEDEF
+abdeclor3:
+	'[' zival ']'
+	{
+		Dtype *d;
+
+		$$ = type();
+		d = dtype($$, TARR);
+		d->alen = $2;
+	}
+|	'(' abdeclor1 ')'
+	{
+		$$ = $2;
+	}
 
 sue:
 	LSTRUCT name
@@ -253,14 +275,38 @@ sdecls:
 		$$ = $1;
 	}
 
+zival:
+	{
+		$$ = -1;
+	}
+|	LIVAL
+
 name:
 	LNAME
 |	LTAG
 
+tycl:
+	LVOID
+|	LCHAR
+|	LSHORT
+|	LINT
+|	LLONG
+|	LFLOAT
+|	LDOUBLE
+|	LSIGNED
+|	LUNSIGNED
+|	LCONST
+|	LVOLATILE
+|	LAUTO
+|	LREGISTER
+|	LSTATIC
+|	LEXTERN
+|	LTYPEDEF
+
 %%
 
 void
-typeclean(Btype *btype)
+btypeclean(Btype *btype)
 {
 	int i, t;
 	u32int tycl;
