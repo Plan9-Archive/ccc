@@ -91,6 +91,8 @@ enum {
 	BDOUBLE,
 	NTYPE,
 
+	BTYPE = 1<<NTYPE - 1,
+
 	BSIGNED = NTYPE,
 	BUNSIGNED,
 	BCONST,

@@ -241,10 +241,21 @@ typefmtprint(Fmt *f, Type *t)
 	if(fmtprint(f, "chan sending ") == -1)
 		return -1;
 	return typefmtprint(f, t->chantype);
-}	
+}
+
+static char *tnames[NTYPE] = {	
+	[BVOID] "void",
+	[BCHAR] "char",
+	[BSHORT] "short",
+	[BINT] "int",
+	[BLONG] "long",
+	[BVLONG] "vlong",
+	[BFLOAT] "float",
+	[BDOUBLE] "double",
+};
 
 static int
-btypefmtprint(Fmt *f, u32int btype)
+tyclfmtprint(Fmt *f, u32int btype)
 {
 	int i, r;
 
@@ -260,24 +271,9 @@ btypefmtprint(Fmt *f, u32int btype)
 		if(btype & 1<<i)
 			break;
 	}
-	switch(i){
-	case BCHAR:
-		r = fmtprint(f, "char");
-		break;
-	case BSHORT:
-		r = fmtprint(f, "short");
-		break;
-	case BINT:
-		r = fmtprint(f, "int");
-		break;
-	case BLONG:
-		r = fmtprint(f, "long");
-		break;
-	case BVLONG:
-		r = fmtprint(f, "vlong");
-		break;
-	}
-	return r;
+	if(i == NTYPE)
+		return 0;
+	return fmtprint(f, tnames[i]);
 }
 
 static int suefmtprint(Sym*);
@@ -301,7 +297,7 @@ declfmtprint(Fmt *f, Sym *s)
 		return 0;
 
 	if((tycl = t->tycl) != 0) {
-		r = btypefmtprint(f, tycl);
+		r = tyclfmtprint(f, tycl);
 		if(r == -1)
 			return -1;
 	}

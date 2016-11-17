@@ -356,8 +356,14 @@ btypeclean(Btype *btype)
 	}
 
 	if(tycl & 1<<BSIGNED && tycl & 1<<BUNSIGNED)
-		error("Cannot be signed and unsigned.");
-
+		error("Type cannot be signed and unsigned.");
+	if(tycl & 1<<BSIGNED || tycl & 1<<BUNSIGNED) switch(t) {
+	case BVOID:
+	case BFLOAT:
+	case BDOUBLE:
+		error("%d cannot be signed or unsigned.", t);
+	}
+	
 	btype->tycl = tycl;
 }
 
