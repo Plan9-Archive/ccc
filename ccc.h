@@ -130,6 +130,7 @@ void popblock(void);
 Names *pushnames(Names*);
 Names *popnames(Names*);
 Names *addparent(Names*, Names*);
+void printsyms(void);
 
 int typeeq(Type*, Type*);
 

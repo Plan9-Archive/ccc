@@ -93,10 +93,9 @@ printchandecls(Symlist *slist)
 		return;
 
 	print("\n#line %d %s\n", line, filename);
-	print("Channel ");
 	for(si = slist->sp; si < slist->ep; si++) {
 		s = *si;
-		print("*(%D)%s", s, si+1 < slist->ep ? ", " : ";\n");
+		print("%Y%s", s, si+1 < slist->ep ? ", " : ";\n");
 	}
 }
 

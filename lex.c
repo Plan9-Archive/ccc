@@ -13,7 +13,6 @@ static int getnumber(Rune);
 
 static int Yfmt(Fmt*);
 static int Tfmt(Fmt*);
-static int Dfmt(Fmt*);
 
 int dbg;
 
@@ -32,7 +31,6 @@ threadmain(int argc, char **argv)
 	dbg = 1;
 	fmtinstall('Y', Yfmt);
 	fmtinstall('T', Tfmt);
-	fmtinstall('D', Dfmt);
 	if(argc == 0)
 		pushstream(0);
 	else
@@ -41,6 +39,8 @@ threadmain(int argc, char **argv)
 	keywords();
 	setupout();
 	yyparse();
+	if(dbg)
+		printsyms();
 }
 
 void
@@ -165,7 +165,7 @@ yyerror(char *err)
 	error(err);
 }
 
-static int typefmtprint(Fmt*, Type*);
+static int typefmtprint(Fmt*, Type*, Rune*);
 
 static int
 Yfmt(Fmt *f)
@@ -174,73 +174,140 @@ Yfmt(Fmt *f)
 
 	s = va_arg(f->args, Sym*);
 	if(s == nil)
-		return -1;
+		return 0;
 
-	if(fmtprint(f, "Sym %S: ", s->name) == -1)
-		return -1;
-	if(typefmtprint(f, s->type) == -1)
-		return -1;
-	return 0;
+	return typefmtprint(f, s->type, s->name);
 }
 
 static int
 Tfmt(Fmt *f)
 {
-	return typefmtprint(f, va_arg(f->args, Type*));
+	Type *t;
+
+	t = va_arg(f->args, Type*);
+	if(t == nil)
+		return 0;
+	
+	return typefmtprint(f, t, nil);
 }
 
-static int declfmtprint(Fmt*, Sym*);
+static int suefmtprint(Fmt*, Sym*);
+static int tyclfmtprint(Fmt*, u32int);
 
 static int
-Dfmt(Fmt *f)
+typefmtprint(Fmt *f, Type *t, Rune *n)
 {
-	return declfmtprint(f, va_arg(f->args, Sym*));
-}
-
-static int btypefmtprint(Fmt*, u32int);
-
-static int
-typefmtprint(Fmt *f, Type *t)
-{
+	enum {
+		BLEN = 512
+	};
+	Rune *buf;
 	Dtype *d;
-	Sym *suetag, **si, *s;
-	Symlist *sl;
+	Rune *p, *e, *ep;
+	u32int tycl;
+	Sym *sue;
+	Type **ti;
+	int r, prev, chan;
+	long len;
+
+#define parens \
+	if(prev == TPTR) { \
+		if(e >= ep-2) \
+			error("No room to print declaration of %S", n); \
+		memmove(buf+1, buf, (e-buf) * sizeof(Rune)); \
+		p++; \
+		e++; \
+		*buf = L'('; \
+		*e++ = L')'; \
+		*e = L'\0'; \
+	}
 
 	if(t == nil)
 		return 0;
 
-	for(d = t->dtype; d != nil; d = d->link) switch(d->t) {
-	case TPTR:
-		if(fmtprint(f, "pointer to ") == -1)
+	chan = 0;
+	if((tycl = t->tycl) != 0) {
+		r = tyclfmtprint(f, tycl);
+		if(r == -1)
 			return -1;
-		break;
-	case TARR:
-		if(fmtprint(f, "array of ") == -1)
+	} else if((sue = t->sue) != nil) {
+		r = suefmtprint(f, sue);
+		if(r == -1)
 			return -1;
-		break;
+	} else if(t->chantype != nil) {
+		chan = 1;
+		r = fmtprint(f, "%s", "Channel");
+		if(r == -1)
+			return -1;
 	}
 
-	if(btypefmtprint(f, t->tycl) == -1)
+	r = fmtprint(f, " ");
+	if(r == -1)
 		return -1;
-	if(t->sue != nil) {
-		suetag = t->sue;
-		fmtprint(f, "struct type %S ", suetag->name);
-		if(suetag->sulist != nil) {
-			fmtprint(f, "with struct members:\n");
-			sl = suetag->sulist;
-			for(si = sl->sp; si < sl->ep; si++) {
-				s = *si;
-				fmtprint(f, "\t%S: ", s->name);
-				typefmtprint(f, s->type);
-				fmtprint(f, "\n");
+
+	if(chan) {
+		r = fmtprint(f, "*(");
+		if(r == -1)
+			return -1;
+	}
+
+	buf = ecalloc(BLEN, sizeof(*buf));
+	ep = buf+BLEN;
+
+	p = e = buf;
+	prev = !TPTR;
+	for(d = t->dtype; d != nil; d = d->link) {
+		switch(d->t) {
+		case TARR:
+			parens
+			if(d->alen != -1)
+				e = runeseprint(e, ep, "[%d]", d->alen);
+			else
+				e = runeseprint(e, ep, "[]");
+			break;
+		case TPTR:
+			if(e >= ep-1)
+				error("No room to print declaration of %S", n);
+			memmove(buf+1, buf, (e-buf) * sizeof(Rune));
+			p++;
+			e++;
+			*e = L'\0';
+			*buf = L'*';
+			break;
+		case TFUNC:
+			parens
+			if(e >= ep-2)
+				error("No room to print declaration of %S", n);
+			*e++ = L'(';
+			for(ti = d->param->sp; ti < d->param->ep; ti++) {
+				e = runeseprint(e, ep, "%T", *ti);
+				if(ti+1 < d->param->ep)
+					e = runeseprint(e, ep, ", ");
 			}
+			*e++ = L')';
+			break;
 		}
-	}			
-	if(t->chantype == nil) 
-		return 0;
-	if(fmtprint(f, "chan sending ") == -1)
-		return -1;
-	return typefmtprint(f, t->chantype);
+		prev = d->t;
+	}
+
+	if(n == nil)
+		goto End;
+
+	len = runestrlen(n);
+	if(e >= ep-len)
+		error("No room to print declaration of %S", n);
+	memmove(p+len, p, (e-p) * sizeof(Rune));
+	e += len;
+	memcpy(p, n, len*sizeof(Rune));
+	*e = L'\0';
+
+End:
+	r = fmtprint(f, "%S", buf);
+	if(r == -1)
+		return r;
+	if(chan)
+		r = fmtprint(f, ")");
+	free(buf);
+	return r;
 }
 
 static char *tnames[NTYPE] = {	
@@ -276,82 +343,9 @@ tyclfmtprint(Fmt *f, u32int btype)
 	return fmtprint(f, tnames[i]);
 }
 
-static int suefmtprint(Sym*);
-
-static int
-declfmtprint(Fmt *f, Sym *s)
-{
-	enum {
-		BLEN = 1024
-	};
-	static Rune buf[BLEN];
-	Type *t;
-	Dtype *d;
-	Rune *p, *e;
-	u32int tycl;
-	Sym *sue;
-	int r, prev;
-	long len;
-
-	if((t = s->type) == nil)
-		return 0;
-
-	if((tycl = t->tycl) != 0) {
-		r = tyclfmtprint(f, tycl);
-		if(r == -1)
-			return -1;
-	}
-	if((sue = t->sue) != nil) {
-		r = suefmtprint(sue);
-		if(r == -1)
-			return -1;
-	}
-
-	p = e = buf;
-	prev = !TPTR;
-	for(d = t->dtype; d != nil; d = d->link) {
-		switch(d->t) {
-		case TARR:
-			if(prev == TPTR) {
-				if(e >= buf+BLEN-2)
-					error("No room to print declaration of %S", s->name);
-				memmove(buf+1, buf, (e-buf) * sizeof(Rune));
-				p++;
-				e++;
-				*buf = L'(';
-				*e++ = L')';
-			}
-			if(d->alen != -1)
-				e = runeseprint(e, buf+BLEN, "[%d]", d->alen);
-			else
-				e = runeseprint(e, buf+BLEN, "[]");
-			break;
-		case TPTR:
-				if(e >= buf+BLEN-1)
-					error("No room to print declaration of %S", s->name);
-				memmove(buf+1, buf, (e-buf) * sizeof(Rune));
-				p++;
-				e++;
-				*buf = L'*';
-			break;
-		case TFUNC:
-			break;
-		}
-		prev = d->t;
-	}
-	len = runestrlen(s->name);
-	if(e >= buf+BLEN-len)
-		error("No room to print declaration of %S", s->name);
-	memmove(p+len, p, (e-p) * sizeof(Rune));
-	e += len;
-	memcpy(p, s->name, len*sizeof(Rune));
-	*e = L'\0';
-	return fmtprint(f, "%S", buf);
-}
-
 // TODO
 static int
-suefmtprint(Sym*)
+suefmtprint(Fmt*, Sym*)
 {
 	return 0;
 }

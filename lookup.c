@@ -173,3 +173,17 @@ newsym(Names *ns, Rune *n)
 	}
 	return s;
 }
+
+void
+printsyms(void)
+{
+	Channel *c;
+	Sym *s;
+
+	c = llrbwalk(namespace->t, nil, nil, IN);
+	while((s = recvp(c)) != nil) {
+		fprint(2, "trying to print %S\n", s->name);
+		fprint(2, "%Y\n", s);
+	}
+	chanfree(c);
+}
