@@ -126,6 +126,9 @@ dtype(Type *t, int val)
 	d = emallocz(sizeof(*d));
 	d->t = val;
 	d->link = nil;
+	if(t == nil)
+		return d;
+
 	*t->dtail = d;
 	t->dtail = &d->link;
 	return d;

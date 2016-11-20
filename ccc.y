@@ -83,7 +83,7 @@ xasdecl:
 
 		$$.btype = (struct Btype){nil, 0};
 		$$.slist = $6;
-		$$.chantype = $4;
+		$$.chantype = paramconv($4);
 	}
 
 tcqspec:
@@ -143,7 +143,7 @@ declor1:
 		Dtype *d;
 
 		d = dtype($1->newtype, TFUNC);
-		d->param = $3;
+		d->param = paramsconv($3);
 		$$ = $1;
 	}
 
@@ -210,7 +210,7 @@ abdeclor2:
 		Dtype *d;
 
 		d = dtype($1, TFUNC);
-		d->param = $3;
+		d->param = paramsconv($3);
 		$$ = $1;
 	}
 |	abdeclor2 '[' zival ']'
@@ -414,6 +414,34 @@ setchantype(Symlist *symlist, Type *t)
 		}
 		sym->type = newtype;
 	}
+}
+
+Type*
+paramconv(Type *t)
+{
+	Dtype *d;
+
+	if((d = t->dtype) != nil) switch(d->t) {
+	case TARR:
+		d->alen = 0;
+		d->t = TPTR;
+		break;
+	case TFUNC:
+		t->dtype = dtype(nil, TPTR);
+		t->dtype->link = d;
+		break;
+	}
+	return t;
+}		
+
+Typelist*
+paramsconv(Typelist *tl)
+{
+	Type **ti;
+
+	for(ti = tl->sp; ti < tl->ep; ti++)
+		paramconv(*ti);
+	return tl;
 }
 
 int
