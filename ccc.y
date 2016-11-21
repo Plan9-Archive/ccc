@@ -31,7 +31,7 @@
 
 %type	<decl>	xasdecl
 %type	<symlist>	declors
-%type	<typelist>	param-list param-list1
+%type	<typelist>	paramlist paramlist1
 %type	<sym>	declor declor1 name tycl sue
 %type	<type>	abdeclor abdeclor1 abdeclor2 abdeclor3 param
 %type	<tspec>	tcqspec
@@ -68,6 +68,8 @@ xadecl:
 xasdecl:
 	tcqspec ';'
 	{
+		btypeclean(&$1);
+
 		$$.btype = $1;
 		$$.dtype = $1.dtype;
 		$$.slist = nil;
@@ -110,8 +112,7 @@ tcqspec:
 declors:
 	declor
 	{
-		$$ = symlist();
-		addsym($$, $1);
+		$$ = addsym(symlist(), $1);
 	}
 |	declors ',' declor
 	{
@@ -144,7 +145,7 @@ declor1:
 		d->alen = $3;
 		$$ = $1;
 	}
-|	declor1 '(' param-list ')'
+|	declor1 '(' paramlist ')'
 	{
 		Dtype *d;
 
@@ -153,9 +154,9 @@ declor1:
 		$$ = $1;
 	}
 
-param-list:
-	param-list1
-|	param-list1 ',' '.' '.' '.'
+paramlist:
+	paramlist1
+|	paramlist1 ',' '.' '.' '.'
 	{
 		Type *t;
 
@@ -165,13 +166,12 @@ param-list:
 		$$ = $1;
 	}
 
-param-list1:
+paramlist1:
 	param
 	{
-		$$ = typelist();
-		addtype($$, paramconv($1));
+		$$ = addtype(typelist(), paramconv($1));
 	}
-|	param-list1 ',' param
+|	paramlist1 ',' param
 	{
 		$$ = addtype($1, paramconv($3));
 	}
@@ -212,7 +212,7 @@ abdeclor1:
 
 abdeclor2:
 	abdeclor3
-|	abdeclor2 '(' param-list ')'
+|	abdeclor2 '(' paramlist ')'
 	{
 		Dtype *d;
 
@@ -312,7 +312,7 @@ tycl:
 
 %%
 
-struct Btype BZ = {0};
+Btype BZ = {0};
 
 void
 btypeclean(Btype *btype)
@@ -517,6 +517,7 @@ addsumembs(struct Sumembs *m, struct Decl *d)
 
 		s->type = t->newtype;
 		*(Btype*)s->type = d->btype;
+		*s->type->dtail = d->dtype;
 		t->newtype = nil;
 	}
 }
