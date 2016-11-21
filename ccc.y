@@ -11,9 +11,13 @@
 	Symlist *symlist;
 	Type *type;
 	Typelist *typelist;
-	Btype btype;
+	struct Tspec {
+		Btype;
+		Dtype *dtype;
+	} tspec;
 	struct Decl {
 		Btype btype;
+		Dtype *dtype;
 		Symlist *slist;
 		Type *chantype;
 	} decl;
@@ -30,14 +34,14 @@
 %type	<typelist>	param-list param-list1
 %type	<sym>	declor declor1 name tycl sue
 %type	<type>	abdeclor abdeclor1 abdeclor2 abdeclor3 param
-%type	<btype>	tcqspec
+%type	<tspec>	tcqspec
 %type	<sumembs>	sdecls
 %type	<ival>	zival
 
 %token	<sym>	LNAME LVOID LCHAR LSHORT LINT LLONG LFLOAT
 %token	<sym>	LDOUBLE LSIGNED LUNSIGNED LCONST LVOLATILE
 %token	<sym>	LAUTO LREGISTER LSTATIC LEXTERN LTYPEDEF
-%token	<sym>	LUNION LENUM LSTRUCT LTAG
+%token	<sym>	LUNION LENUM LSTRUCT LTYPE
 %token	<ival>	LIVAL
 %token	<dval>	LDVAL
 %token	LCHAN
@@ -55,7 +59,7 @@ xadecl:
 			printchandecls($1.slist);
 			nocopyout();
 		} else {
-			settype($1.slist, &$1.btype);
+			settype($1.slist, &$1.btype, $1.dtype);
 			copyout();
 		}
 		symlistfree($1.slist);
@@ -65,6 +69,7 @@ xasdecl:
 	tcqspec ';'
 	{
 		$$.btype = $1;
+		$$.dtype = $1.dtype;
 		$$.slist = nil;
 		$$.chantype = nil;
 	}
@@ -73,32 +78,33 @@ xasdecl:
 		btypeclean(&$1);
 
 		$$.btype = $1;
+		$$.dtype = $1.dtype;
 		$$.slist = $2;
 		$$.chantype = nil;
 	}
-|	LCHAN '(' tcqspec abdeclor ')' declors ';'
+|	LCHAN '(' param ')' declors ';'
 	{
-		btypeclean(&$3);
-		*(Btype*)$4 = $3;
-
-		$$.btype = (struct Btype){nil, 0};
-		$$.slist = $6;
-		$$.chantype = paramconv($4);
+		$$.btype = BZ;
+		$$.dtype = nil;
+		$$.slist = $5;
+		$$.chantype = $3;
 	}
 
 tcqspec:
 	{
-		$$ = (struct Btype){nil, 0};
+		$$ = (struct Tspec){BZ, nil};
 	}
 |	tcqspec tycl
 	{
-		$$.tycl = addspec($1.tycl, $2);
+		$$.tycl = addspec($1.tycl, $2->tycl);
 	}
 |	tcqspec sue
 	{
-		if($$.sue != nil)
-			error("Multiple struct declarations.");
-		$$.sue = $2;
+		$$.sue = addsue(&$1, $2);
+	}
+|	tcqspec LTYPE
+	{
+		$$ = *addtypedef(&$1, $2->type);
 	}
 
 declors:
@@ -121,7 +127,7 @@ declor:
 	}
 
 declor1:
-	name
+	LNAME
 	{
 		$1->newtype = type();
 		$$ = $1;
@@ -143,7 +149,7 @@ declor1:
 		Dtype *d;
 
 		d = dtype($1->newtype, TFUNC);
-		d->param = paramsconv($3);
+		d->param = $3;
 		$$ = $1;
 	}
 
@@ -154,7 +160,7 @@ param-list:
 		Type *t;
 
 		t = type();
-		t->tycl = 1<<BDOTS;
+		t->tycl = 1<<TDOTS;
 		addtype($1, t);
 		$$ = $1;
 	}
@@ -163,17 +169,18 @@ param-list1:
 	param
 	{
 		$$ = typelist();
-		addtype($$, $1);
+		addtype($$, paramconv($1));
 	}
 |	param-list1 ',' param
 	{
-		$$ = addtype($1, $3);
+		$$ = addtype($1, paramconv($3));
 	}
 
 param:
 	tcqspec declor
 	{
 		$$ = $2->newtype;
+		$2->newtype = nil;
 		btypeclean(&$1);
 		*(Btype*)$$ = $1;
 	}
@@ -210,7 +217,7 @@ abdeclor2:
 		Dtype *d;
 
 		d = dtype($1, TFUNC);
-		d->param = paramsconv($3);
+		d->param = $3;
 		$$ = $1;
 	}
 |	abdeclor2 '[' zival ']'
@@ -283,7 +290,7 @@ zival:
 
 name:
 	LNAME
-|	LTAG
+|	LTYPE
 
 tycl:
 	LVOID
@@ -305,6 +312,8 @@ tycl:
 
 %%
 
+struct Btype BZ = {0};
+
 void
 btypeclean(Btype *btype)
 {
@@ -316,35 +325,29 @@ btypeclean(Btype *btype)
 	sue = btype->sue;
 
 	if(sue != nil) {
-		if(tycl != 0)
-			error("Cannot be a basic type and a structure type\n");
+		if(tycl & (BTYPE|BSIGN))
+			error("Cannot be a basic type and a structure type.");
 		return;
 	}
 
-	for(i = BVOID; i < NTYPE; i++) {
+	for(i = TVOID; i < NTYPE; i++) {
 		if(tycl & 1<<i)
 			break;
 	}
 
 	switch(i) {
 	case NTYPE:
-		t = BINT;
+		t = TINT;
 		break;
-	case BSHORT:
-		t = BSHORT;
-		tycl &= ~(1<<BINT);
-		break;
-	case BINT:
-		if(tycl & 1<<BLONG)
-			t = BLONG;
-		else if (tycl & 1<<BVLONG)
-			t = BVLONG;
-		else {
-			t = BINT;
+	case TLONG:
+		if(tycl & 1<<TDOUBLE) {
+			tycl &= ~(1<<TLONG);
+			t = TDOUBLE;
 			break;
 		}
-		tycl &= ~(1<<BINT);
-		break;
+	case TVLONG:
+	case TSHORT:
+		tycl &= ~(1<<TINT);
 	default:
 		t = i;
 		break;
@@ -355,12 +358,10 @@ btypeclean(Btype *btype)
 			error("Overspecified type %d and %d.", t, i);
 	}
 
-	if(tycl & 1<<BSIGNED && tycl & 1<<BUNSIGNED)
-		error("Type cannot be signed and unsigned.");
-	if(tycl & 1<<BSIGNED || tycl & 1<<BUNSIGNED) switch(t) {
-	case BVOID:
-	case BFLOAT:
-	case BDOUBLE:
+	if(tycl & BSIGN) switch(t) {
+	case TVOID:
+	case TFLOAT:
+	case TDOUBLE:
 		error("%d cannot be signed or unsigned.", t);
 	}
 	
@@ -368,7 +369,7 @@ btypeclean(Btype *btype)
 }
 
 void
-settype(Symlist *symlist, Btype *btype)
+settype(Symlist *symlist, Btype *btype, Dtype *dtype)
 {
 	Sym **s, *sym;
 	Type *type, *newtype;
@@ -382,6 +383,7 @@ settype(Symlist *symlist, Btype *btype)
 		newtype = sym->newtype;
 
 		*(Btype*)newtype = *btype;
+		*newtype->dtail = dtype;
 
 		if(type != nil) {
 			typeeq(type, newtype);
@@ -389,6 +391,8 @@ settype(Symlist *symlist, Btype *btype)
 		}
 		sym->type = newtype;
 		sym->newtype = nil;
+		if(btype->tycl & 1<<TTYPEDEF)
+			sym->lex = LTYPE;
 	}
 }
 
@@ -434,16 +438,6 @@ paramconv(Type *t)
 	return t;
 }		
 
-Typelist*
-paramsconv(Typelist *tl)
-{
-	Type **ti;
-
-	for(ti = tl->sp; ti < tl->ep; ti++)
-		paramconv(*ti);
-	return tl;
-}
-
 int
 typeeq(Type*, Type*)
 {
@@ -451,21 +445,51 @@ typeeq(Type*, Type*)
 }
 
 u32int
-addspec(u32int t, Sym *s)
+addspec(u32int t, int tycl)
 {
-	long tycl;
-
-	if(s->tycl == BLONG) {
-		if(t & 1<<BVLONG)
-			warn("You already specified long long.");
-		else
-			t += 1<<BLONG;
-		return t;
+	if(tycl < NTYPE) {
+		if(tycl == TLONG) {
+			if(t & 1<<TVLONG)
+				error("You already specified long long.");
+			else
+				t += 1<<TLONG;
+			return t;
+		}
+		if(t & 1<<tycl)
+			error("You already specified type %d", tycl);
+	} else if(tycl < NSIGN) {
+		if(t & BSIGN)
+			error("You already specified a sign.");
+	} else if(tycl < NCLASS) {
+		if(t & BCLASS)
+			error("You already specified a class.");
 	}
-	tycl = s->tycl;
-	if(t & 1<<tycl)
-		warn("You already specified %S.", s->name);
 	return t | 1<<tycl;
+}
+
+Sym*
+addsue(Btype *btype, Sym *sue)
+{
+	if(btype->sue != nil)
+		error("Multiple struct declarations.");
+	if(btype->tycl & BTYPE)
+		error("Cannot be a struct and a basic type.");
+
+	btype->sue = sue;
+	return sue;
+}
+
+struct Tspec*
+addtypedef(struct Tspec *tspec, Type *t)
+{
+	if(tspec->sue != nil || tspec->tycl & (BTYPE|BSIGN))
+		error("Overspecified typedef application.");
+
+	tspec->dtype = t->dtype;
+	tspec->sue = t->sue;
+	tspec->tycl |= t->tycl;
+
+	return tspec;
 }
 
 void

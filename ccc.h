@@ -8,15 +8,15 @@ typedef struct Names Names;
 
 struct Sym {
 	Llrb;
+	int lex;
 	Rune *name;
 	Type *type;
 	Type *newtype;
-	int lex;
-	long tycl;
-	int block;
-	int suetype;
 	Names *sunames;
 	Symlist *sulist;
+	uchar tycl;
+	uchar block;
+	uchar suetype;
 };
 
 struct Symlist {
@@ -81,28 +81,34 @@ enum {
 	KENUM,
 	NKEYS,
 
-	BVOID = 0,
-	BCHAR,
-	BSHORT,
-	BINT,
-	BLONG,
-	BVLONG,
-	BFLOAT,
-	BDOUBLE,
+	TVOID = 0,
+	TSHORT,
+	TLONG,
+	TVLONG,
+	TCHAR,
+	TINT,
+	TDOUBLE,
+	TFLOAT,
 	NTYPE,
-
 	BTYPE = 1<<NTYPE - 1,
 
-	BSIGNED = NTYPE,
-	BUNSIGNED,
-	BCONST,
-	BVOLATILE,
-	BAUTO,
-	BREGISTER,
-	BSTATIC,
-	BEXTERN,
-	BTYPEDEF,
-	BDOTS,
+	TSIGNED = NTYPE,
+	TUNSIGNED,
+	NSIGN,
+	BSIGN = NSIGN-1 ^ BTYPE,
+
+	TCONST = TUNSIGNED + 1,
+	TAUTO,
+	TSTATIC,
+	TEXTERN,
+	TTYPEDEF,
+	NCLASS,
+	BCLASS = NCLASS-1 ^ (BSIGN|BTYPE),
+
+	TVOLATILE = NCLASS,
+	TREGISTER,
+
+	TDOTS,
 
 	TPTR = 0,
 	TARR,

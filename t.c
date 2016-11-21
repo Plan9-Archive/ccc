@@ -34,6 +34,9 @@ symlistinit(Symlist *s)
 void
 symlistfree(Symlist *s)
 {
+	if(s == nil)
+		return;
+
 	s->link = sl;
 	sl = s;
 }

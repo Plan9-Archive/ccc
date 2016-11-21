@@ -16,6 +16,8 @@ static int Tfmt(Fmt*);
 
 int dbg;
 
+int mainstacksize = 16*1024;
+
 void
 threadmain(int argc, char **argv)
 {
@@ -58,22 +60,22 @@ struct Keyword {
 };
 
 Keyword keys[NKEYS] = {
-	[KVOID]	L"void",	LVOID,	BVOID,
-	[KCHAR]	L"char",	LCHAR,	BCHAR,
-	[KSHORT]	L"short",	LSHORT,	BSHORT,
-	[KINT]	L"int",	LINT,	BINT,
-	[KLONG]	L"long",	LLONG,	BLONG,
-	[KFLOAT]	L"float",	LFLOAT,	BFLOAT,
-	[KDOUBLE]	L"double",	LDOUBLE,	BDOUBLE,
-	[KSIGNED]	L"signed",	LSIGNED,	BSIGNED,
-	[KUNSIGNED]	L"unsigned",	LUNSIGNED,	BUNSIGNED,
-	[KCONST]	L"const",	LCONST,	BCONST,
-	[KVOLATILE]	L"volatile",	LVOLATILE,	BVOLATILE,
-	[KAUTO]	L"auto",	LAUTO,	BAUTO,
-	[KREGISTER]	L"register",	LREGISTER,	BREGISTER,
-	[KSTATIC]	L"static",	LSTATIC,	BSTATIC,
-	[KEXTERN]	L"extern",	LEXTERN,	BEXTERN,
-	[KTYPEDEF]	L"typedef",	LTYPEDEF,	BTYPEDEF,
+	[KVOID]	L"void",	LVOID,	TVOID,
+	[KCHAR]	L"char",	LCHAR,	TCHAR,
+	[KSHORT]	L"short",	LSHORT,	TSHORT,
+	[KINT]	L"int",	LINT,	TINT,
+	[KLONG]	L"long",	LLONG,	TLONG,
+	[KFLOAT]	L"float",	LFLOAT,	TFLOAT,
+	[KDOUBLE]	L"double",	LDOUBLE,	TDOUBLE,
+	[KSIGNED]	L"signed",	LSIGNED,	TSIGNED,
+	[KUNSIGNED]	L"unsigned",	LUNSIGNED,	TUNSIGNED,
+	[KCONST]	L"const",	LCONST,	TCONST,
+	[KVOLATILE]	L"volatile",	LVOLATILE,	TVOLATILE,
+	[KAUTO]	L"auto",	LAUTO,	TAUTO,
+	[KREGISTER]	L"register",	LREGISTER,	TREGISTER,
+	[KSTATIC]	L"static",	LSTATIC,	TSTATIC,
+	[KEXTERN]	L"extern",	LEXTERN,	TEXTERN,
+	[KTYPEDEF]	L"typedef",	LTYPEDEF,	TTYPEDEF,
 	[KCHAN]	L"chan",	LCHAN,	0,
 	[KSTRUCT]	L"struct",	LSTRUCT,	0,
 	[KUNION]	L"union",	LUNION,	0,
@@ -311,14 +313,14 @@ End:
 }
 
 static char *tnames[NTYPE] = {	
-	[BVOID] "void",
-	[BCHAR] "char",
-	[BSHORT] "short",
-	[BINT] "int",
-	[BLONG] "long",
-	[BVLONG] "vlong",
-	[BFLOAT] "float",
-	[BDOUBLE] "double",
+	[TVOID] "void",
+	[TCHAR] "char",
+	[TSHORT] "short",
+	[TINT] "int",
+	[TLONG] "long",
+	[TVLONG] "vlong",
+	[TFLOAT] "float",
+	[TDOUBLE] "double",
 };
 
 static int
@@ -327,9 +329,9 @@ tyclfmtprint(Fmt *f, u32int btype)
 	int i, r;
 
 	r = 0;
-	if(btype & 1<<BUNSIGNED)
+	if(btype & 1<<TUNSIGNED)
 		r = fmtprint(f, "unsigned ");
-	else if(btype & 1<<BSIGNED)
+	else if(btype & 1<<TSIGNED)
 		r = fmtprint(f, "signed ");
 	if(r == -1)
 		return -1;
