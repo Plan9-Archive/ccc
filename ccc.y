@@ -406,7 +406,8 @@ settype(Symlist *symlist, Btype *btype, Dtype *dtype)
 		*newtype->dtail = dtype;
 
 		if(type != nil) {
-			typeeq(type, newtype);
+			if(typeeq(type, newtype) != 0)
+				error("Types do not match %S: %D, %D", sym->name, type, newtype);
 			typefree(type);
 		}
 		sym->type = newtype;
@@ -433,7 +434,8 @@ setchantype(Symlist *symlist, Type *t)
 		newtype->chantype = t;
 
 		if(type != nil) {
-			typeeq(type, newtype);
+			if(typeeq(type, newtype) != 0)
+				error("Chan types do not match %S: %D, %D", sym->name, type, newtype);
 			typefree(type);
 		}
 		sym->type = newtype;
@@ -456,12 +458,85 @@ paramconv(Type *t)
 		break;
 	}
 	return t;
-}		
+}
+
+static int
+tycleq(u32int t1, u32int t2)
+{
+	if((t1^t2) & (BTYPE|BSIGN))
+		return 1;
+	return 0;
+}
+
+static int
+sueeq(Sym*, Sym*)
+{
+	return 0;
+}
+
+static int
+parameq(Typelist *l1, Typelist *l2)
+{
+	Type **ti1, **ti2;
+
+	if(l1 !=nil && l2 != nil)
+		goto check;
+	if(l1 == nil && l2 == nil)
+		return 0;
+	return 1;
+
+check:
+	for(ti1 = l1->sp, ti2 = l2->sp; ti1 < l1->ep; ti1++, ti2++) {
+		if(ti2 == l2->ep)
+			return 1;
+		if(typeeq(*ti1, *ti2) != 0)
+			return 1;
+	}
+	return 0;
+}
+
+
+static int
+dtypeeq(Dtype *d1, Dtype *d2)
+{
+loop:
+	if(d1 != nil && d2 != nil)
+		goto check;
+	if(d1 == nil && d2 == nil)
+		return 0;
+	return 1;
+
+check:
+	if(d1->t != d2->t)
+		return 1;
+	if(d1->alen != d2->alen)
+		return 1;
+	if(parameq(d1->param, d2->param) != 0)
+		return 1;
+	d1 = d1->link;
+	d2 = d2->link;
+	goto loop;
+}
 
 int
-typeeq(Type*, Type*)
+typeeq(Type *t1, Type *t2)
 {
+	if(t1 != nil && t2 != nil)
+		goto check;
+	if(t1 == nil && t2 == nil)
+		return 0;
 	return 1;
+
+check:
+	if(tycleq(t1->tycl, t2->tycl) != 0)
+		return 1;
+	if(sueeq(t1->sue, t2->sue) != 0)
+		return 1;
+	if(typeeq(t1->chantype, t2->chantype) != 0)
+		return 1;
+	if(dtypeeq(t1->dtype, t2->dtype) != 0)
+		return 1;
+	return 0;
 }
 
 u32int

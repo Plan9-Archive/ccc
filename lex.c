@@ -13,6 +13,7 @@ static int getnumber(Rune);
 
 static int Yfmt(Fmt*);
 static int Tfmt(Fmt*);
+static int Dfmt(Fmt*);
 
 int dbg;
 
@@ -33,6 +34,7 @@ threadmain(int argc, char **argv)
 	dbg = 1;
 	fmtinstall('Y', Yfmt);
 	fmtinstall('T', Tfmt);
+	fmtinstall('D', Dfmt);
 	if(argc == 0)
 		pushstream(0);
 	else
@@ -167,7 +169,7 @@ yyerror(char *err)
 	error(err);
 }
 
-static int typefmtprint(Fmt*, Type*, Rune*);
+static int typefmtprint(Fmt*, Type*, Rune*, int);
 
 static int
 Yfmt(Fmt *f)
@@ -178,7 +180,7 @@ Yfmt(Fmt *f)
 	if(s == nil)
 		return 0;
 
-	return typefmtprint(f, s->type, s->name);
+	return typefmtprint(f, s->type, s->name, 0);
 }
 
 static int
@@ -190,14 +192,27 @@ Tfmt(Fmt *f)
 	if(t == nil)
 		return 0;
 	
-	return typefmtprint(f, t, nil);
+	return typefmtprint(f, t, nil, 0);
 }
+
+static int
+Dfmt(Fmt *f)
+{
+	Type *t;
+
+	t = va_arg(f->args, Type*);
+	if(t == nil)
+		return 0;
+	
+	return typefmtprint(f, t, nil, 1);
+}
+	
 
 static int suefmtprint(Fmt*, Sym*);
 static int tyclfmtprint(Fmt*, u32int);
 
 static int
-typefmtprint(Fmt *f, Type *t, Rune *n)
+typefmtprint(Fmt *f, Type *t, Rune *n, int dbg)
 {
 	enum {
 		BLEN = 512
@@ -208,7 +223,7 @@ typefmtprint(Fmt *f, Type *t, Rune *n)
 	u32int tycl;
 	Sym *sue;
 	Type **ti;
-	int r, prev, chan;
+	int r, prev;
 	long len;
 
 #define parens \
@@ -226,7 +241,6 @@ typefmtprint(Fmt *f, Type *t, Rune *n)
 	if(t == nil)
 		return 0;
 
-	chan = 0;
 	if((tycl = t->tycl) != 0) {
 		r = tyclfmtprint(f, tycl);
 		if(r == -1)
@@ -238,18 +252,10 @@ typefmtprint(Fmt *f, Type *t, Rune *n)
 			return -1;
 	}
 	if(t->chantype != nil) {
-		chan = 1;
-		r = fmtprint(f, "%s", "Channel");
-		if(r == -1)
-			return -1;
-	}
-
-	r = fmtprint(f, " ");
-	if(r == -1)
-		return -1;
-
-	if(chan) {
-		r = fmtprint(f, "*(");
+		if(dbg)
+			r = fmtprint(f, "chan(%D)", t->chantype);
+		else
+			r = fmtprint(f, "Channel*");
 		if(r == -1)
 			return -1;
 	}
@@ -257,9 +263,14 @@ typefmtprint(Fmt *f, Type *t, Rune *n)
 	buf = ecalloc(BLEN, sizeof(*buf));
 	ep = buf+BLEN;
 
+	if((d = t->dtype) != nil) {
+		r = fmtprint(f, " ");
+		if(r == -1)
+			return -1;
+	}
 	p = e = buf;
 	prev = !TPTR;
-	for(d = t->dtype; d != nil; d = d->link) {
+	for(; d != nil; d = d->link) {
 		switch(d->t) {
 		case TARR:
 			parens
@@ -306,15 +317,11 @@ typefmtprint(Fmt *f, Type *t, Rune *n)
 
 End:
 	r = fmtprint(f, "%S", buf);
-	if(r == -1)
-		return r;
-	if(chan)
-		r = fmtprint(f, ")");
 	free(buf);
 	return r;
 }
 
-static char *tnames[NTYPE] = {	
+static char *tnames[] = {
 	[TVOID] "void",
 	[TCHAR] "char",
 	[TSHORT] "short",
@@ -335,6 +342,7 @@ tyclfmtprint(Fmt *f, u32int btype)
 		r = fmtprint(f, "unsigned ");
 	else if(btype & 1<<TSIGNED)
 		r = fmtprint(f, "signed ");
+
 	if(r == -1)
 		return -1;
 

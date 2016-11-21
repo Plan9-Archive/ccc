@@ -90,7 +90,7 @@ enum {
 	TDOUBLE,
 	TFLOAT,
 	NTYPE,
-	BTYPE = 1<<NTYPE - 1,
+	BTYPE = NTYPE - 1,
 
 	TSIGNED = NTYPE,
 	TUNSIGNED,
@@ -120,7 +120,7 @@ enum {
 
 #pragma	varargck type "Y" Sym*
 #pragma varargck type "T" Type*
-#pragma varargck type "D" Sym*
+#pragma varargck type "D" Type*
 
 void usage(void);
 
