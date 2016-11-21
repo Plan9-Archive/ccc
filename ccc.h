@@ -170,6 +170,6 @@ int isspacer(Rune);
 int isalphar(Rune);
 int isdigitr(Rune);
 
-extern int dbg, line, block;
+extern int dbg, line, block, suelookup;
 extern char filename[1024];
 extern Names *namespace;

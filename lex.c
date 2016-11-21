@@ -231,11 +231,13 @@ typefmtprint(Fmt *f, Type *t, Rune *n)
 		r = tyclfmtprint(f, tycl);
 		if(r == -1)
 			return -1;
-	} else if((sue = t->sue) != nil) {
+	}
+	if((sue = t->sue) != nil) {
 		r = suefmtprint(f, sue);
 		if(r == -1)
 			return -1;
-	} else if(t->chantype != nil) {
+	}
+	if(t->chantype != nil) {
 		chan = 1;
 		r = fmtprint(f, "%s", "Channel");
 		if(r == -1)
@@ -351,7 +353,7 @@ suefmtprint(Fmt *f, Sym *s)
 	Sym **si;
 	int r;
 
-	if(runestrncmp(L"_ANON_", s->name, 6) != 0)
+	if(s->name != nil)
 		return fmtprint(f, "struct %S", s->name);
 
 	r = fmtprint(f, "struct {\n");

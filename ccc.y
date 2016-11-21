@@ -36,7 +36,7 @@
 %type	<type>	abdeclor abdeclor1 abdeclor2 abdeclor3 param
 %type	<tspec>	tcqspec
 %type	<sumembs>	sdecls
-%type	<ival>	zival
+%type	<ival>	zival su
 
 %token	<sym>	LNAME LVOID LCHAR LSHORT LINT LLONG LFLOAT
 %token	<sym>	LDOUBLE LSIGNED LUNSIGNED LCONST LVOLATILE
@@ -244,27 +244,47 @@ abdeclor3:
 	}
 
 sue:
-	LSTRUCT name
+	su name
 	{
-		$2->suetype = TSTRUCT;
+		$2->suetype = $1;
 		$$ = $2;
 	}
-|	LSTRUCT name '{' sdecls '}'
+|	su name '{' sdecls '}'
 	{
 		$2->sunames = $4.names;
 		$2->sulist = $4.slist;
-		$2->suetype = TSTRUCT;
+		$2->suetype = $1;
 		$$ = $2;
 	}
-|	LUNION name
+|	su '{' sdecls '}'
 	{
-		$2->suetype = TUNION;
-		$$ = $2;
+		$$ = sym(nil, nil);
+		$$->sunames = $3.names;
+		$$->sulist = $3.slist;
+		$$->suetype = $1;
 	}
-|	LENUM name
+|	e name
 	{
 		$2->suetype = TENUM;
 		$$ = $2;
+	}
+
+su:
+	LSTRUCT
+	{
+		suelookup = 1;
+		$$ = TSTRUCT;
+	}
+|	LUNION
+	{
+		suelookup = 1;
+		$$ = TUNION;
+	}
+
+e:
+	LENUM
+	{
+		suelookup = 1;
 	}
 
 sdecls:

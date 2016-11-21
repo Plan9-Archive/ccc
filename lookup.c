@@ -5,7 +5,7 @@
 #include "ccc.h"
 #include "y.tab.h"
 
-int block;
+int block, suelookup;
 Names *namespace;
 
 void
@@ -141,36 +141,46 @@ lookup(Names *ns, Rune *n)
 {
 	Sym *s, l;
 
+	if(ns == nil || n == nil)
+		return nil;
+
 	s = nil;
 	l.name = n;
-	while(ns != nil) {
+	for(; ns != nil; ns = ns->parent) {
 		s = (Sym*)llrblookup(ns->t, &l);
-		if(s != nil)
+		if(s != nil) {
+			if(suelookup && s->suetype == 0)
+				continue;
 			break;
-		ns = ns->parent;
+		}
 	}
+	suelookup = 0;
 	return s;
 }
 
 static Sym*
 newsym(Names *ns, Rune *n)
 {
-	Sym *s, *old;
+	Sym *s, l;
+
+	if(n == nil)
+		return emallocz(sizeof(Sym));
+
+	if(ns != nil) {
+		l.name = n;
+		s = (Sym*)llrblookup(ns->t, &l);
+		if(s != nil)
+			return s;
+	}
 
 	s = emallocz(sizeof(*s));
 	s->name = erunestrdup(n);
 	s->lex = LNAME;
-
 	if(ns == nil)
 		return s;
 
 	s->block = ns->block;
-
-	old = (Sym*)llrbinsert(ns->t, s);
-	if(old != nil) {
-		warn("Replacing sym: %S\n", old->name);
-		symfree(old);
-	}
+	llrbinsert(ns->t, s);
 	return s;
 }
 
