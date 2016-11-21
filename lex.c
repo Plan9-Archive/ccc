@@ -345,9 +345,24 @@ tyclfmtprint(Fmt *f, u32int btype)
 	return fmtprint(f, tnames[i]);
 }
 
-// TODO
 static int
-suefmtprint(Fmt*, Sym*)
+suefmtprint(Fmt *f, Sym *s)
 {
-	return 0;
+	Sym **si;
+	int r;
+
+	if(runestrncmp(L"_ANON_", s->name, 6) != 0)
+		return fmtprint(f, "struct %S", s->name);
+
+	r = fmtprint(f, "struct {\n");
+	if(r == -1)
+		return -1;
+
+	for(si = s->sulist->sp; si < s->sulist->ep; si++) {
+		r = fmtprint(f, "\t%Y;\n", *si);
+		if(r == -1)
+			return -1;
+	}
+
+	return fmtprint(f, "}");
 }
