@@ -169,7 +169,7 @@ yyerror(char *err)
 	error(err);
 }
 
-static int typefmtprint(Fmt*, Type*, Rune*, int);
+static void typefmtprint(Fmt*, Type*, Rune*, int);
 
 static int
 Yfmt(Fmt *f)
@@ -180,7 +180,8 @@ Yfmt(Fmt *f)
 	if(s == nil)
 		return 0;
 
-	return typefmtprint(f, s->type, s->name, 0);
+	typefmtprint(f, s->type, s->name, 0);
+	return 0;
 }
 
 static int
@@ -192,7 +193,8 @@ Tfmt(Fmt *f)
 	if(t == nil)
 		return 0;
 	
-	return typefmtprint(f, t, nil, 0);
+	typefmtprint(f, t, nil, 0);
+	return 0;
 }
 
 static int
@@ -204,14 +206,15 @@ Dfmt(Fmt *f)
 	if(t == nil)
 		return 0;
 	
-	return typefmtprint(f, t, nil, 1);
+	typefmtprint(f, t, nil, 1);
+	return 0;
 }
 	
 
-static int suefmtprint(Fmt*, Sym*);
-static int tyclfmtprint(Fmt*, u32int);
+static void suefmtprint(Fmt*, Sym*);
+static void tyclfmtprint(Fmt*, u32int);
 
-static int
+static void
 typefmtprint(Fmt *f, Type *t, Rune *n, int dbg)
 {
 	enum {
@@ -223,7 +226,7 @@ typefmtprint(Fmt *f, Type *t, Rune *n, int dbg)
 	u32int tycl;
 	Sym *sue;
 	Type **ti;
-	int r, prev;
+	int prev;
 	long len;
 
 #define parens \
@@ -239,35 +242,24 @@ typefmtprint(Fmt *f, Type *t, Rune *n, int dbg)
 	}
 
 	if(t == nil)
-		return 0;
+		return;
 
-	if((tycl = t->tycl) != 0) {
-		r = tyclfmtprint(f, tycl);
-		if(r == -1)
-			return -1;
-	}
-	if((sue = t->sue) != nil) {
-		r = suefmtprint(f, sue);
-		if(r == -1)
-			return -1;
-	}
+	if((tycl = t->tycl) != 0)
+		tyclfmtprint(f, tycl);
+	if((sue = t->sue) != nil)
+		suefmtprint(f, sue);
 	if(t->chantype != nil) {
 		if(dbg)
-			r = fmtprint(f, "chan(%D)", t->chantype);
+			efmtprint(f, "chan(%D)", t->chantype);
 		else
-			r = fmtprint(f, "Channel*");
-		if(r == -1)
-			return -1;
+			efmtprint(f, "Channel*");
 	}
 
 	buf = ecalloc(BLEN, sizeof(*buf));
 	ep = buf+BLEN;
 
-	if((d = t->dtype) != nil) {
-		r = fmtprint(f, " ");
-		if(r == -1)
-			return -1;
-	}
+	if((d = t->dtype) != nil)
+		efmtprint(f, " ");
 	p = e = buf;
 	prev = !TPTR;
 	for(; d != nil; d = d->link) {
@@ -316,9 +308,8 @@ typefmtprint(Fmt *f, Type *t, Rune *n, int dbg)
 	*e = L'\0';
 
 End:
-	r = fmtprint(f, "%S", buf);
+	efmtprint(f, "%S", buf);
 	free(buf);
-	return r;
 }
 
 static char *tnames[] = {
@@ -332,47 +323,40 @@ static char *tnames[] = {
 	[TDOUBLE] "double",
 };
 
-static int
+static void
 tyclfmtprint(Fmt *f, u32int btype)
 {
-	int i, r;
+	int i;
 
-	r = 0;
 	if(btype & 1<<TUNSIGNED)
-		r = fmtprint(f, "unsigned ");
+		efmtprint(f, "unsigned ");
 	else if(btype & 1<<TSIGNED)
-		r = fmtprint(f, "signed ");
-
-	if(r == -1)
-		return -1;
+		efmtprint(f, "signed ");
 
 	for(i = 0; i < NTYPE; i++) {
 		if(btype & 1<<i)
 			break;
 	}
 	if(i == NTYPE)
-		return 0;
-	return fmtprint(f, tnames[i]);
+		return;
+	efmtprint(f, tnames[i]);
 }
 
-static int
+static void
 suefmtprint(Fmt *f, Sym *s)
 {
 	Sym **si;
 	int r;
 
-	if(s->name != nil)
-		return fmtprint(f, "struct %S", s->name);
-
-	r = fmtprint(f, "struct {\n");
-	if(r == -1)
-		return -1;
-
-	for(si = s->sulist->sp; si < s->sulist->ep; si++) {
-		r = fmtprint(f, "\t%Y;\n", *si);
-		if(r == -1)
-			return -1;
+	if(s->name != nil) {
+		efmtprint(f, "struct %S", s->name);
+		return;
 	}
 
-	return fmtprint(f, "}");
+	efmtprint(f, "struct {\n");
+
+	for(si = s->sulist->sp; si < s->sulist->ep; si++)
+		efmtprint(f, "\t%Y;\n", *si);
+
+	efmtprint(f, "}");
 }

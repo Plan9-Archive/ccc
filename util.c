@@ -94,3 +94,14 @@ erunestrdup(Rune *s)
 	setmalloctag(n, getcallerpc(&s));
 	return n;
 }
+
+void
+efmtprint(Fmt *f, char *fmt, ...)
+{
+	va_list va;
+
+	va_start(va, fmt);
+	if(fmtvprint(f, fmt, va) < 0)
+		error("Printing error.");
+	va_end(va);
+}

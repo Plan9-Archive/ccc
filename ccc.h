@@ -20,8 +20,7 @@ struct Sym {
 };
 
 struct Symlist {
-	Sym **sp;
-	Sym **ep;
+	Sym **sp, Sym **ep;
 	int cap;
 	Symlist *link;
 };
@@ -34,8 +33,7 @@ struct Btype {
 struct Type {
 	Btype;
 	Type *chantype;
-	Dtype *dtype;
-	Dtype **dtail;
+	Dtype *dtype, Dtype **dtail;
 };
 
 struct Dtype {
@@ -46,8 +44,7 @@ struct Dtype {
 };
 
 struct Typelist {
-	Type **sp;
-	Type **ep;
+	Type **sp, **ep;
 	int cap;
 	Typelist *link;
 };
@@ -157,6 +154,7 @@ void *emallocz(ulong);
 void *ecalloc(ulong, ulong);
 void *erealloc(void*, ulong);
 Rune *erunestrdup(Rune*);
+void efmtprint(Fmt*, char*, ...);
 
 void setupout(void);
 void pushfile(char*);
